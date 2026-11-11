@@ -13,3 +13,24 @@ __pycache__/
 __pycache__/
 .pytest_cache/
 *.py[cod]
+# Python virtual environments
+.venv/
+.venv-backup/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Local browser data
+browser-state/
+
+# Logs
+*.log

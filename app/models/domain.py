@@ -13,6 +13,14 @@ class QuestionType(StrEnum):
     UNKNOWN = "unknown"
 
 
+class InputType(StrEnum):
+    TEXT = "text"
+    TEXTAREA = "textarea"
+    RADIO = "radio"
+    CHECKBOX = "checkbox"
+    SELECT = "select"
+
+
 class WorkflowStatus(StrEnum):
     IDLE = "idle"
     EXTRACTING = "extracting"
@@ -40,6 +48,7 @@ class SurveyQuestion(BaseModel):
     id: str = Field(min_length=1)
     text: str = Field(min_length=1)
     options: list[str] = Field(default_factory=list)
+    input_type: InputType = InputType.TEXT
     required: bool = False
     question_type: QuestionType = QuestionType.UNKNOWN
     visible: bool = True
