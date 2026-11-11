@@ -32,21 +32,41 @@ class SurveyWorkflow:
         self.unresolved: list[UnresolvedAnswer] = []
 
     async def inspect(self) -> SurveySnapshot:
-        questions = classify_questions(await self.browser.extract_visible_questions())
+        if hasattr(self.browser, "inspect_current_page"):
+            snapshot = await self.browser.inspect_current_page()
+            if snapshot.stop_reason is not None:
+                self._record_stop(snapshot.stop_reason)
+                return snapshot
+            questions = classify_questions(snapshot.questions)
+        else:
+            questions = classify_questions(await self.browser.extract_visible_questions())
+        if self.activity_store is not None:
+            for question in questions:
+                self.activity_store.save_question(question)
         for question in questions:
             if question.question_type in {QuestionType.ATTESTATION, QuestionType.ELIGIBILITY}:
-                self.decisions.append(
-                    DecisionLog(
-                        question_id=question.id,
-                        action="stop",
-                        reason="Human review required for eligibility or attestation.",
-                    )
+                decision = DecisionLog(
+                    question_id=question.id,
+                    action="stop",
+                    reason="Human review required for eligibility or attestation.",
                 )
+                self.decisions.append(decision)
+                if self.activity_store is not None:
+                    self.activity_store.save_decision(decision)
                 return SurveySnapshot(
                     questions=questions,
                     stop_reason=StopReason.ELIGIBILITY_ATTESTATION,
                 )
         return SurveySnapshot(questions=questions)
+
+    def _record_stop(self, reason: StopReason) -> None:
+        decision = DecisionLog(
+            action="stop",
+            reason=f"Processing blocked by safety condition: {reason.value}.",
+        )
+        self.decisions.append(decision)
+        if self.activity_store is not None:
+            self.activity_store.save_decision(decision)
 
     async def apply(self, candidates: list[AnswerCandidate]) -> list[DecisionLog]:
         decision_start = len(self.decisions)
@@ -145,5 +165,8 @@ class SurveyWorkflow:
 
     def _unresolved(self, question_id: str, reason: str) -> None:
         logger.info("Unresolved answer question_id=%s reason=%s", question_id, reason)
-        self.unresolved.append(UnresolvedAnswer(question_id=question_id, reason=reason))
+        unresolved = UnresolvedAnswer(question_id=question_id, reason=reason)
+        self.unresolved.append(unresolved)
+        if self.activity_store is not None:
+            self.activity_store.save_unresolved(unresolved)
         self.decisions.append(DecisionLog(question_id=question_id, action="unresolved", reason=reason))

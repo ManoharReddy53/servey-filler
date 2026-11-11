@@ -14,9 +14,46 @@ submits a survey.
 
 The browser must be authorized by a user through a visible browser session. The
 workflow stops before CAPTCHA, anti-bot checks, eligibility attestations, and
-manual submission. I cannot automate CAPTCHA or answer qualification/eligibility
-questions for you. Factual answers may use verified profile facts; preference
-and opinion answers remain unresolved unless explicitly supplied by the user.
+manual submission. CAPTCHA solving and survey submission are always manual.
+Factual answers require verified profile facts; unsupported personal experiences
+are never fabricated.
+
+## Dashboard and protected API
+
+The browser dashboard is available at `/ui` (and `/`) when the FastAPI server is
+running. It provides connect, inspect, generate-and-fill, disconnect, workflow
+status, pending questions, safety interruptions, and activity history. Activity
+history is fetched from `/activity/history` after each operation.
+
+Configure an explicit approved-domain allowlist and a strong bearer token:
+
+```dotenv
+APPROVED_SURVEY_DOMAINS=surveys.example.com
+DASHBOARD_AUTH_REQUIRED=true
+DASHBOARD_AUTH_TOKEN=<random-token-at-least-32-characters>
+```
+
+Generate a token without putting it in source control:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+`/health` is intentionally unauthenticated and returns only a liveness response.
+All dashboard, workflow, and activity endpoints require `Authorization: Bearer
+<token>` when authentication is enabled. Use HTTPS/TLS and restrict inbound
+access with a firewall or private network; do not expose the development server
+directly to the public internet.
+
+Browser requests are intercepted and each request URL is checked for HTTPS,
+approved hostnames, and unsafe resolved address ranges. Playwright does not
+provide an atomic DNS pinning mechanism: a hostname can change between the
+validation lookup and the browser connection (DNS rebinding/TOCTOU). For
+production, enforce an outbound firewall or proxy allowlist that permits only
+the approved survey domains and blocks loopback, private, link-local, reserved,
+and cloud-metadata networks. The application fails closed when resolution or
+request interception is unavailable, but this network control is still required
+for a complete rebinding defense.
 
 ## Safe browser inspection
 

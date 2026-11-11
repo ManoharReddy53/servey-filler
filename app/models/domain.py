@@ -26,6 +26,7 @@ class WorkflowStatus(StrEnum):
     EXTRACTING = "extracting"
     READY = "ready"
     STOPPED = "stopped"
+    ERROR = "error"
 
 
 class StopReason(StrEnum):
@@ -78,6 +79,7 @@ class SurveySuggestion(BaseModel):
 class IntelligenceResult(BaseModel):
     suggestions: list[SurveySuggestion] = Field(default_factory=list)
     stop_reason: StopReason | None = None
+    error: str | None = None
 
 
 class ValidationResult(BaseModel):

@@ -2,7 +2,7 @@ import sqlite3
 import json
 from pathlib import Path
 
-from app.models.domain import DecisionLog, ProfileFact, UnresolvedAnswer
+from app.models.domain import DecisionLog, ProfileFact, SurveyQuestion, UnresolvedAnswer
 
 
 class SQLiteStore:
@@ -33,6 +33,16 @@ class SQLiteStore:
                     reason TEXT NOT NULL,
                     validation_json TEXT,
                     answer TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS survey_questions (
+                    id TEXT PRIMARY KEY,
+                    text TEXT NOT NULL,
+                    options_json TEXT NOT NULL,
+                    input_type TEXT NOT NULL,
+                    required INTEGER NOT NULL,
+                    question_type TEXT NOT NULL,
+                    visible INTEGER NOT NULL,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
                 """
@@ -67,6 +77,25 @@ class SQLiteStore:
                     decision.reason,
                     decision.validation.model_dump_json() if decision.validation else json.dumps(None),
                     decision.answer,
+                ),
+            )
+
+    def save_question(self, question: SurveyQuestion) -> None:
+        with sqlite3.connect(self.path) as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO survey_questions
+                (id, text, options_json, input_type, required, question_type, visible)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    question.id,
+                    question.text,
+                    json.dumps(question.options),
+                    question.input_type.value,
+                    question.required,
+                    question.question_type.value,
+                    question.visible,
                 ),
             )
 

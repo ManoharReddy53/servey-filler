@@ -12,6 +12,7 @@ _PATTERNS: dict[QuestionType, tuple[str, ...]] = {
         "favorite",
         "favourite",
         "which would you choose",
+        "most important",
         "which mobile operating system",
         "operating system do you use",
         "how often",

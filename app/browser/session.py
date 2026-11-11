@@ -5,6 +5,7 @@ from playwright.async_api import BrowserContext, Playwright, async_playwright
 
 from app.models.domain import InputType, StopReason, SurveyQuestion, SurveySnapshot
 from app.services.safety import detect_stop_reason
+from app.services.url_security import validate_request_url, validate_survey_url
 
 
 class BrowserSession(Protocol):
@@ -16,24 +17,43 @@ class BrowserSession(Protocol):
 class PlaywrightBrowserSession:
     """Adapter boundary; navigation and submission are intentionally absent."""
 
-    def __init__(self, storage_path: str) -> None:
+    def __init__(self, storage_path: str, approved_domains: tuple[str, ...] = ()) -> None:
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self._playwright: Playwright | None = None
         self._context: BrowserContext | None = None
         self._question_controls: dict[str, dict[str, object]] = {}
+        self.approved_domains = approved_domains
 
     async def start_authorized(self, url: str) -> None:
         """Open a visible persistent context and navigate to an explicit user URL."""
         if self._context is not None:
             return
-        self._playwright = await async_playwright().start()
-        self._context = await self._playwright.chromium.launch_persistent_context(
-            user_data_dir=str(self.storage_path),
-            headless=False,
-        )
-        page = self._context.pages[0] if self._context.pages else await self._context.new_page()
-        await page.goto(url, wait_until="domcontentloaded")
+        safe_url = validate_survey_url(url, self.approved_domains)
+        try:
+            self._playwright = await async_playwright().start()
+            self._context = await self._playwright.chromium.launch_persistent_context(
+                user_data_dir=str(self.storage_path),
+                headless=False,
+            )
+            route = getattr(self._context, "route", None)
+            if route is None:
+                raise RuntimeError("Browser request interception is unavailable.")
+            await route("**/*", self._guard_request)
+            page = self._context.pages[0] if self._context.pages else await self._context.new_page()
+            await page.goto(safe_url, wait_until="domcontentloaded")
+            validate_survey_url(page.url, self.approved_domains)
+        except Exception:
+            await self.close()
+            raise
+
+    async def _guard_request(self, route) -> None:
+        try:
+            validate_request_url(route.request.url, self.approved_domains)
+        except Exception:
+            await route.abort("blockedbyclient")
+            return
+        await route.continue_()
 
     async def inspect_current_page(self) -> SurveySnapshot:
         if self._context is None:
@@ -219,9 +239,13 @@ class PlaywrightBrowserSession:
             await locator.fill(value)
 
     async def close(self) -> None:
-        if self._context is not None:
-            await self._context.close()
-            self._context = None
-        if self._playwright is not None:
-            await self._playwright.stop()
-            self._playwright = None
+        context = self._context
+        playwright = self._playwright
+        self._context = None
+        self._playwright = None
+        try:
+            if context is not None:
+                await context.close()
+        finally:
+            if playwright is not None:
+                await playwright.stop()
