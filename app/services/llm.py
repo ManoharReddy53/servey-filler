@@ -20,7 +20,7 @@ class LLMClient(Protocol):
         question_type: QuestionType = QuestionType.UNKNOWN,
         profile_facts: list[ProfileFact] | None = None,
     ) -> StructuredAnswer:
-        """Return a reviewable suggestion; callers remain responsible for safety."""
+        """Return a grounded suggestion; callers remain responsible for safety."""
 
 
 class DisabledLLMClient:
@@ -100,10 +100,15 @@ class GeminiLLMClient:
         ]
         prompt = (
             "Return JSON matching the requested schema. Do not invent personal facts "
-            "or experiences. If the answer cannot be grounded, use null and require "
-            "human review. Every answer must require human review. For preference "
-            "and opinion questions, do not choose for the user; return null and "
-            "explain that user input is required.\n"
+            "or experiences. For ordinary opinion and preference questions, answer "
+            "directly and concisely. For multiple-choice questions, select exactly "
+            "one available option. For free-text questions, return a natural "
+            "conversational response. Such ordinary answers do not require human "
+            "review. For factual questions, use only the verified profile facts; "
+            "if the fact is missing, return null and require human review. For "
+            "questions about actual satisfaction, purchases, usage, employment, "
+            "demographics, or personal experience, never invent an answer: return "
+            "null and explain the missing verified fact. Neutral is a valid option.\n"
             f"Question: {question}\n"
             f"Question type: {question_type.value}\n"
             f"Available options: {json.dumps(options)}\n"

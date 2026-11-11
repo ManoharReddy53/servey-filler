@@ -11,3 +11,12 @@ class HealthResponse(BaseModel):
 class WorkflowResponse(BaseModel):
     status: WorkflowStatus
     detail: str
+
+
+class ActivityEntry(BaseModel):
+    id: int
+    question_id: str | None
+    action: str
+    reason: str
+    answer: str | None
+    created_at: str

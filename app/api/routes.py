@@ -1,7 +1,9 @@
 from fastapi import APIRouter
 
 from app.models.domain import WorkflowStatus
-from app.models.api import HealthResponse, WorkflowResponse
+from app.core.config import get_settings
+from app.db.sqlite import SQLiteStore
+from app.models.api import ActivityEntry, HealthResponse, WorkflowResponse
 
 router = APIRouter()
 
@@ -14,3 +16,10 @@ def health() -> HealthResponse:
 @router.get("/workflow/status", response_model=WorkflowResponse)
 def workflow_status() -> WorkflowResponse:
     return WorkflowResponse(status=WorkflowStatus.IDLE, detail="No browser session is active.")
+
+
+@router.get("/activity/history", response_model=list[ActivityEntry])
+def activity_history(limit: int = 100) -> list[ActivityEntry]:
+    store = SQLiteStore(get_settings().database_path)
+    store.initialize()
+    return [ActivityEntry.model_validate(entry) for entry in store.activity_history(limit)]

@@ -72,6 +72,7 @@ class StructuredAnswer(BaseModel):
 class SurveySuggestion(BaseModel):
     question_id: str = Field(min_length=1)
     suggestion: StructuredAnswer
+    auto_fill: bool = False
 
 
 class IntelligenceResult(BaseModel):
@@ -91,6 +92,7 @@ class DecisionLog(BaseModel):
     action: str
     reason: str
     validation: ValidationResult | None = None
+    answer: str | None = None
 
 
 class UnresolvedAnswer(BaseModel):

@@ -1,6 +1,13 @@
 import pytest
 
-from app.models.domain import AnswerCandidate, QuestionType, SurveyQuestion, StopReason
+from app.models.domain import (
+    AnswerCandidate,
+    QuestionType,
+    StructuredAnswer,
+    SurveyQuestion,
+    SurveySuggestion,
+    StopReason,
+)
 from app.services.profile import ProfileFacts
 from app.services.workflow import SurveyWorkflow
 
@@ -52,3 +59,26 @@ async def test_does_not_fill_when_attestation_is_present() -> None:
         [AnswerCandidate(question_id="age", value="30", source="verified_profile", permitted=True)]
     )
     assert browser.filled == []
+
+
+@pytest.mark.asyncio
+async def test_fills_generated_opinion_and_records_answer() -> None:
+    browser = MockBrowser(
+        [SurveyQuestion(id="opinion", text="What do you think?", question_type=QuestionType.OPINION)]
+    )
+    workflow = SurveyWorkflow(browser, ProfileFacts())
+    decisions = await workflow.apply_suggestions(
+        [
+            SurveySuggestion(
+                question_id="opinion",
+                suggestion=StructuredAnswer(
+                    answer="It is convenient.",
+                    rationale="Ordinary opinion.",
+                    requires_human_review=False,
+                ),
+                auto_fill=True,
+            )
+        ]
+    )
+    assert browser.filled == [("opinion", "It is convenient.")]
+    assert decisions[-1].answer == "It is convenient."
