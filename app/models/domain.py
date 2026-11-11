@@ -69,6 +69,16 @@ class StructuredAnswer(BaseModel):
     requires_human_review: bool = True
 
 
+class SurveySuggestion(BaseModel):
+    question_id: str = Field(min_length=1)
+    suggestion: StructuredAnswer
+
+
+class IntelligenceResult(BaseModel):
+    suggestions: list[SurveySuggestion] = Field(default_factory=list)
+    stop_reason: StopReason | None = None
+
+
 class ValidationResult(BaseModel):
     question_id: str
     valid: bool

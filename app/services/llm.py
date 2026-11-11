@@ -5,7 +5,7 @@ from typing import Protocol
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.models.domain import StructuredAnswer
+from app.models.domain import ProfileFact, QuestionType, StructuredAnswer
 
 
 class LLMError(RuntimeError):
@@ -13,12 +13,24 @@ class LLMError(RuntimeError):
 
 
 class LLMClient(Protocol):
-    async def suggest(self, question: str, options: list[str]) -> StructuredAnswer:
+    async def suggest(
+        self,
+        question: str,
+        options: list[str],
+        question_type: QuestionType = QuestionType.UNKNOWN,
+        profile_facts: list[ProfileFact] | None = None,
+    ) -> StructuredAnswer:
         """Return a reviewable suggestion; callers remain responsible for safety."""
 
 
 class DisabledLLMClient:
-    async def suggest(self, question: str, options: list[str]) -> StructuredAnswer:
+    async def suggest(
+        self,
+        question: str,
+        options: list[str],
+        question_type: QuestionType = QuestionType.UNKNOWN,
+        profile_facts: list[ProfileFact] | None = None,
+    ) -> StructuredAnswer:
         return StructuredAnswer(
             rationale="LLM credentials are not configured; no answer was generated.",
         )
@@ -30,7 +42,13 @@ class MockLLMClient:
     def __init__(self, responses: dict[str, StructuredAnswer] | None = None) -> None:
         self.responses = responses or {}
 
-    async def suggest(self, question: str, options: list[str]) -> StructuredAnswer:
+    async def suggest(
+        self,
+        question: str,
+        options: list[str],
+        question_type: QuestionType = QuestionType.UNKNOWN,
+        profile_facts: list[ProfileFact] | None = None,
+    ) -> StructuredAnswer:
         return self.responses.get(
             question,
             StructuredAnswer(rationale="No mock response configured for this question."),
@@ -68,13 +86,28 @@ class GeminiLLMClient:
         except Exception as exc:
             raise self._safe_provider_error(exc, "Gemini model verification failed.") from exc
 
-    async def suggest(self, question: str, options: list[str]) -> StructuredAnswer:
+    async def suggest(
+        self,
+        question: str,
+        options: list[str],
+        question_type: QuestionType = QuestionType.UNKNOWN,
+        profile_facts: list[ProfileFact] | None = None,
+    ) -> StructuredAnswer:
+        facts = [
+            {"key": fact.key, "value": fact.value, "source": fact.source}
+            for fact in (profile_facts or [])
+            if fact.verified
+        ]
         prompt = (
             "Return JSON matching the requested schema. Do not invent personal facts "
             "or experiences. If the answer cannot be grounded, use null and require "
-            "human review.\n"
+            "human review. Every answer must require human review. For preference "
+            "and opinion questions, do not choose for the user; return null and "
+            "explain that user input is required.\n"
             f"Question: {question}\n"
-            f"Available options: {json.dumps(options)}"
+            f"Question type: {question_type.value}\n"
+            f"Available options: {json.dumps(options)}\n"
+            f"Verified profile facts: {json.dumps(facts)}"
         )
         try:
             from google.genai import types
